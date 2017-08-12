@@ -11,24 +11,39 @@ var host string
 var start_port int
 var end_port int
 
+var resChan = make(chan string)
+var errChan = make(chan string)
+
 func main() {
 	user_input()
 }
 
 func check_port(host string, start_port, end_port int) {
 
-	for i := start_port; i <= end_port; i++ {
-		fmt.Println(i)
-		qualified_host := fmt.Sprintf("%s%s%d", host, ":", i)
-		conn, err := net.DialTimeout("tcp", qualified_host, 1*time.Second)  // Got the timeout code from: https://stackoverflow.com/questions/37294052/golang-why-net-dialtimeout-get-timeout-half-of-the-time
-		if err != nil {
-			fmt.Println(err)
-			continue
+	for portNum := start_port; portNum <= end_port; portNum++ {
+		go doConnectionTest(portNum)
+        }
+	for res := start_port; res <= end_port; res++ {
+		select {
+		case aResult := <- resChan:
+			fmt.Println("\n\u2620 ", aResult)
+		case aBlockedPort := <- errChan:
+			fmt.Print("\u26D4 :", aBlockedPort)
 		}
-		fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
-		status, err := bufio.NewReader(conn).ReadString('\n')
-		fmt.Println(status)
 	}
+	fmt.Println("\n\nAll tested!")
+}
+
+func doConnectionTest(port int) {
+		qualified_host := fmt.Sprintf("%s%s%d", host, ":", port)
+		conn, err := net.DialTimeout("tcp", qualified_host, 1*time.Second)  // Code from: https://stackoverflow.com/questions/37294052/golang-why-net-dialtimeout-get-timeout-half-of-the-time
+		if (err != nil) { 
+			errChan <-fmt.Sprintf("%d, ",port) 
+		} else {
+			fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+			status, _ := bufio.NewReader(conn).ReadString('\n')
+		        resChan <- fmt.Sprintf("%d:%s",port,status)	
+		} 
 }
 
 func user_input() {
